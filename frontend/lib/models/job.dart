@@ -6,6 +6,7 @@ class Job {
   final String company;
   final String status;
   final DateTime appliedDate;
+  final DateTime? interviewDate;
 
   Job({
     required this.id,
@@ -13,6 +14,7 @@ class Job {
     required this.company,
     required this.status,
     required this.appliedDate,
+    this.interviewDate,
   });
 
   factory Job.fromFirestore(DocumentSnapshot doc) {
@@ -27,6 +29,7 @@ class Job {
       company: data['company'] ?? '',
       status: data['status'] ?? 'Applied',
       appliedDate: (data['appliedDate'] as Timestamp).toDate(),
+      interviewDate: data['interviewDate'] != null ? (data['interviewDate'] as Timestamp).toDate() : null,
     );
   }
 
@@ -36,6 +39,7 @@ class Job {
       'company': company,
       'status': status,
       'appliedDate': Timestamp.fromDate(appliedDate),
+      if (interviewDate != null) 'interviewDate': Timestamp.fromDate(interviewDate!),
     };
   }
 }

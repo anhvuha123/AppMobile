@@ -13,6 +13,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
 
   @override
   Widget build(BuildContext context) {
@@ -69,37 +70,42 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 20),
                     TextField(
                       controller: passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
+                      obscureText: !_isPasswordVisible,
+                      decoration: InputDecoration(
                         labelText: "Mật khẩu",
-                        prefixIcon: Icon(Icons.lock),
+                        prefixIcon: const Icon(Icons.lock),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _isPasswordVisible = !_isPasswordVisible;
+                            });
+                          },
+                        ),
                       ),
                     ),
                     const SizedBox(height: 30),
                     ElevatedButton(
                       onPressed: () async {
-                        await AuthService().login(emailController.text, passwordController.text);
-                        if (AuthService().currentUser != null) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (_) => const HomePage()),
+                        try {
+                          await AuthService().login(emailController.text, passwordController.text);
+                          if (AuthService().currentUser != null) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (_) => const HomePage()),
+                            );
+                          }
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Tên đăng nhập và mật khẩu không đúng")),
                           );
                         }
                       },
                       child: const Text("Đăng nhập"),
                     ),
                     const SizedBox(height: 20),
-                    TextButton(
-                      onPressed: () async {
-                        await AuthService().register(emailController.text, passwordController.text);
-                        if (AuthService().currentUser != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Đăng ký thành công!")),
-                          );
-                        }
-                      },
-                      child: const Text("Đăng ký"),
-                    ),
                   ],
                 ),
               ),

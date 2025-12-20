@@ -1,22 +1,18 @@
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-
-    plugins {
-        id("com.google.gms.google-services") version "4.4.2" apply false
-    }
-}
-
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+allprojects {
     repositories {
         google()
         mavenCentral()
     }
 }
 
-rootProject.name = "job_tracker"
-include(":app")
+rootProject.buildDir = File("../build")
+subprojects {
+    project.buildDir = File(rootProject.buildDir, project.name)
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register<Delete>("clean") {
+    delete(rootProject.buildDir)
+}
