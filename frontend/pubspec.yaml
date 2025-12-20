@@ -1,0 +1,24 @@
+name: job_tracker
+description: App quản lý thông tin ứng tuyển - Flutter + Firebase + Phone OTP
+publish_to: "none"
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Chỉ giữ 1 phiên bản cho mỗi package
+  firebase_core: ^4.3.0
+  firebase_auth: ^6.1.3
+  cloud_firestore: ^6.1.1
+  firebase_storage: ^13.0.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
