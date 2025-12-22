@@ -13,13 +13,24 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ValueNotifier<List<Job>> _jobsNotifier = ValueNotifier([]);
+  late List<Widget> _widgetOptions;
 
-  static List<Widget> _widgetOptions = <Widget>[
-    DashboardTab(),
-    JobsTab(),
-    InterviewsTab(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _widgetOptions = <Widget>[
+      DashboardTab(jobsNotifier: _jobsNotifier),
+      JobsTab(jobsNotifier: _jobsNotifier),
+      InterviewsTab(),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _jobsNotifier.dispose();
+    super.dispose();
+  }
 
   String _getTitle(int index) {
     switch (index) {
@@ -40,21 +51,25 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  List<Widget> _buildActions() {
+    List<Widget> actions = [];
+    actions.add(IconButton(
+      icon: const Icon(Icons.logout),
+      onPressed: () {
+        FirebaseAuth.instance.signOut();
+        Navigator.pop(context);
+      },
+    ));
+    return actions;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_getTitle(_selectedIndex)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              FirebaseAuth.instance.signOut();
-              Navigator.pop(context);
-            },
-          ),
-        ],
+        actions: _buildActions(),
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -140,7 +155,18 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class DashboardTab extends StatelessWidget {
+class DashboardTab extends StatefulWidget {
+  final ValueNotifier<List<Job>> jobsNotifier;
+
+  const DashboardTab({super.key, required this.jobsNotifier});
+
+  @override
+  State<DashboardTab> createState() => _DashboardTabState();
+}
+
+class _DashboardTabState extends State<DashboardTab> {
+  String _searchQuery = '';
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -191,6 +217,78 @@ class DashboardTab extends StatelessWidget {
             ),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Autocomplete<String>(
+            optionsBuilder: (TextEditingValue textEditingValue) {
+              if (textEditingValue.text.isEmpty) {
+                return const Iterable<String>.empty();
+              }
+              final allJobs = widget.jobsNotifier.value;
+              final titles = allJobs.map((job) => job.title).toSet();
+              final companies = allJobs.map((job) => job.company).toSet();
+              final allKeywords = titles.union(companies);
+              return allKeywords.where((keyword) =>
+                keyword.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+            },
+            onSelected: (String selection) {
+              setState(() {
+                _searchQuery = selection;
+              });
+            },
+            fieldViewBuilder: (BuildContext context, TextEditingController textEditingController, FocusNode focusNode, VoidCallback onFieldSubmitted) {
+              return TextField(
+                controller: textEditingController,
+                focusNode: focusNode,
+                decoration: InputDecoration(
+                  hintText: 'Tìm kiếm công việc hoặc công ty...',
+                  hintStyle: TextStyle(
+                    color: Colors.grey.shade400, // 👈 xám lợt
+                  ),
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none, 
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              );
+            },
+            optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  elevation: 4.0,
+                  child: Container(
+                    height: 200,
+                    width: MediaQuery.of(context).size.width - 40,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(8.0),
+                      itemCount: options.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final String option = options.elementAt(index);
+                        return GestureDetector(
+                          onTap: () {
+                            onSelected(option);
+                          },
+                          child: ListTile(
+                            title: Text(option),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: Text(
@@ -218,10 +316,19 @@ class DashboardTab extends StatelessWidget {
                 return Job.fromFirestore(doc);
               }).toList();
 
-              if (jobs.isEmpty) {
+              widget.jobsNotifier.value = jobs;
+
+              final filteredJobs = _searchQuery.isEmpty
+                ? jobs
+                : jobs.where((job) =>
+                    job.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                    job.company.toLowerCase().contains(_searchQuery.toLowerCase())
+                  ).toList();
+
+              if (filteredJobs.isEmpty) {
                 return const Center(
                   child: Text(
-                    'Chưa có thông tin ứng tuyển nào.',
+                    'Không tìm thấy kết quả.',
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                 );
@@ -229,9 +336,9 @@ class DashboardTab extends StatelessWidget {
 
               return ListView.builder(
                 padding: const EdgeInsets.all(20),
-                itemCount: jobs.length,
+                itemCount: filteredJobs.length,
                 itemBuilder: (context, index) {
-                  final job = jobs[index];
+                  final job = filteredJobs[index];
                   return Card(
                     elevation: 5,
                     margin: const EdgeInsets.only(bottom: 10),
@@ -290,7 +397,16 @@ class DashboardTab extends StatelessWidget {
   }
 }
 
-class JobsTab extends StatelessWidget {
+class JobsTab extends StatefulWidget {
+  final ValueNotifier<List<Job>> jobsNotifier;
+
+  const JobsTab({super.key, required this.jobsNotifier});
+
+  @override
+  State<JobsTab> createState() => _JobsTabState();
+}
+
+class _JobsTabState extends State<JobsTab> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
@@ -307,6 +423,8 @@ class JobsTab extends StatelessWidget {
         final jobs = snapshot.data!.docs.map((doc) {
           return Job.fromFirestore(doc);
         }).toList();
+
+        widget.jobsNotifier.value = jobs;
 
         if (jobs.isEmpty) {
           return const Center(
@@ -380,6 +498,85 @@ class JobsTab extends StatelessWidget {
                 },
               ),
             );
+          },
+        );
+      },
+    );
+  }
+}
+
+class JobSearchDelegate extends SearchDelegate<Job> {
+  final List<Job> jobs;
+
+  JobSearchDelegate({required this.jobs});
+
+  @override
+  List<Widget> buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.clear),
+        onPressed: () {
+          query = '';
+        },
+      ),
+    ];
+  }
+
+  @override
+  Widget buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () {
+        close(context, Job(id: '', title: '', company: '', status: '', appliedDate: DateTime.now()));
+      },
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    final results = jobs.where((job) =>
+      job.title.toLowerCase().contains(query.toLowerCase()) ||
+      job.company.toLowerCase().contains(query.toLowerCase())
+    ).toList();
+
+    return ListView.builder(
+      itemCount: results.length,
+      itemBuilder: (context, index) {
+        final job = results[index];
+        return ListTile(
+          title: Text(job.title),
+          subtitle: Text(job.company),
+          onTap: () {
+            close(context, job);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => JobDetailPage(job: job),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    final suggestions = jobs.where((job) =>
+      job.title.toLowerCase().contains(query.toLowerCase()) ||
+      job.company.toLowerCase().contains(query.toLowerCase())
+    ).toList();
+
+    return ListView.builder(
+      itemCount: suggestions.length,
+      itemBuilder: (context, index) {
+        final job = suggestions[index];
+        return ListTile(
+          title: Text(job.title),
+          subtitle: Text(job.company),
+          onTap: () {
+            query = job.title;
+            showResults(context);
           },
         );
       },
