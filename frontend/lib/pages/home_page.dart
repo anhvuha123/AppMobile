@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../models/job.dart';
 import 'job_detail_page.dart';
 
@@ -70,7 +71,7 @@ class _HomePageState extends State<HomePage> {
             width: 72,
             height: 72,
             child: FloatingActionButton(
-              shape: const CircleBorder(), // 👈 đảm bảo hình tròn
+              shape: const CircleBorder(), 
               onPressed: () {
                 setState(() {
                   _selectedIndex = 0;
@@ -271,12 +272,7 @@ class DashboardTab extends StatelessWidget {
                         color: job.status == 'Accepted' ? Colors.green : Colors.orange,
                       ),
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => JobDetailPage(job: job),
-                          ),
-                        );
+                        JobDetailDialog.show(context, job);
                       },
                     ),
                   );
@@ -350,7 +346,8 @@ class JobsTab extends StatelessWidget {
                 borderRadius: BorderRadius.circular(15),
               ),
               child: ListTile(
-                contentPadding: const EdgeInsets.all(15),
+                contentPadding: const EdgeInsets.fromLTRB(15, 2, 15, 12),
+                minVerticalPadding: 0,
                 title: Text(
                   job.title,
                   style: const TextStyle(
@@ -361,7 +358,13 @@ class JobsTab extends StatelessWidget {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Công ty: ${job.company}'),
+                    Text(
+                      'Công ty: ${job.company}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.blueAccent,
+                      ),
+                    ),
                     Text('Trạng thái: ${job.status}'),
                     Text('Ngày ứng tuyển: ${job.appliedDate.toLocal().toString().split(' ')[0]}'),
                   ],
@@ -371,12 +374,7 @@ class JobsTab extends StatelessWidget {
                   color: statusColor,
                 ),
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => JobDetailPage(job: job),
-                    ),
-                  );
+                  JobDetailDialog.show(context, job);
                 },
               ),
             );
@@ -388,6 +386,45 @@ class JobsTab extends StatelessWidget {
 }
 
 class InterviewsTab extends StatelessWidget {
+  IconData _getInterviewTypeIcon(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'phone':
+        return Icons.phone;
+      case 'video':
+        return Icons.videocam;
+      case 'in-person':
+        return Icons.location_on;
+      default:
+        return Icons.calendar_today;
+    }
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.blueAccent, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
@@ -420,30 +457,53 @@ class InterviewsTab extends StatelessWidget {
           itemBuilder: (context, index) {
             final job = jobs[index];
             return Card(
-              elevation: 5,
-              margin: const EdgeInsets.only(bottom: 10),
+              elevation: 8,
+              margin: const EdgeInsets.only(bottom: 15),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(20),
               ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(15),
-                title: Text(
-                  job.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-                subtitle: Column(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Công ty: ${job.company}'),
-                    Text('Ngày phỏng vấn: ${job.interviewDate!.toLocal().toString().split(' ')[0]}'),
+                    Row(
+                      children: [
+                        Icon(
+                          _getInterviewTypeIcon(job.interviewType),
+                          color: Colors.blueAccent,
+                          size: 30,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            job.title,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueAccent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20, thickness: 1),
+                    _buildInfoRow(Icons.business, 'Công ty', job.company),
+                    const SizedBox(height: 10),
+                    _buildInfoRow(Icons.calendar_today, 'Ngày phỏng vấn', job.interviewDate!.toLocal().toString().split(' ')[0]),
+                    if (job.interviewer != null) ...[
+                      const SizedBox(height: 10),
+                      _buildInfoRow(Icons.person, 'Người phỏng vấn', job.interviewer!),
+                    ],
+                    if (job.interviewLocation != null) ...[
+                      const SizedBox(height: 10),
+                      _buildInfoRow(Icons.location_on, 'Địa điểm', job.interviewLocation!),
+                    ],
+                    if (job.interviewType != null) ...[
+                      const SizedBox(height: 10),
+                      _buildInfoRow(_getInterviewTypeIcon(job.interviewType), 'Loại phỏng vấn', job.interviewType!),
+                    ],
                   ],
-                ),
-                trailing: const Icon(
-                  Icons.calendar_today,
-                  color: Colors.blueAccent,
                 ),
               ),
             );
