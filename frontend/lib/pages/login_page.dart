@@ -19,7 +19,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Đăng nhập ứng viên"),
+        title: const Text("vui lòng đăng nhập"),
         centerTitle: true,
       ),
       body: Container(

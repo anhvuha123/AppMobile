@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:job_tracker/pages/login_page.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../models/job.dart';
 import 'job_detail_page.dart';
@@ -62,9 +63,16 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
-              FirebaseAuth.instance.signOut();
-              Navigator.pop(context);
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginPage(),
+                ),
+                (route) => false,
+              );
             },
           ),
         ],
