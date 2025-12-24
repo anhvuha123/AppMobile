@@ -6,7 +6,10 @@ import '../models/job.dart';
 import 'job_detail_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final int initialIndex;
+  final String? highlightJobId;
+
+  const HomePage({super.key, this.initialIndex = 0, this.highlightJobId});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -14,13 +17,14 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
+  String? _highlightJobId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static List<Widget> _widgetOptions = <Widget>[
-    DashboardTab(),
-    JobsTab(),
-    InterviewsTab(),
-  ];
+  List<Widget> get _widgetOptions => <Widget>[
+        const DashboardTab(),
+        JobsTab(),
+        InterviewsTab(highlightedJobId: _highlightJobId),
+      ];
 
   String _getTitle(int index) {
     switch (index) {
@@ -38,7 +42,15 @@ class _HomePageState extends State<HomePage> {
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+      if (index != 2) _highlightJobId = null; // clear highlight when leaving Interviews
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+    _highlightJobId = widget.highlightJobId;
   }
 
   @override
@@ -141,7 +153,16 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class DashboardTab extends StatelessWidget {
+class DashboardTab extends StatefulWidget {
+  const DashboardTab({super.key});
+
+  @override
+  State<DashboardTab> createState() => _DashboardTabState();
+}
+
+class _DashboardTabState extends State<DashboardTab> {
+  String _searchQuery = '';
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -192,6 +213,25 @@ class DashboardTab extends StatelessWidget {
             ),
           ),
         ),
+
+        // Search field
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Tìm kiếm công việc hoặc công ty...',
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+        ),
+
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: Text(
@@ -215,14 +255,19 @@ class DashboardTab extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final jobs = snapshot.data!.docs.map((doc) {
-                return Job.fromFirestore(doc);
-              }).toList();
+              final jobs = snapshot.data!.docs.map((doc) => Job.fromFirestore(doc)).toList();
 
-              if (jobs.isEmpty) {
+              final filteredJobs = _searchQuery.isEmpty
+                ? jobs
+                : jobs.where((job) =>
+                    job.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                    job.company.toLowerCase().contains(_searchQuery.toLowerCase())
+                  ).toList();
+
+              if (filteredJobs.isEmpty) {
                 return const Center(
                   child: Text(
-                    'Chưa có thông tin ứng tuyển nào.',
+                    'Không tìm thấy kết quả.',
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                 );
@@ -230,9 +275,9 @@ class DashboardTab extends StatelessWidget {
 
               return ListView.builder(
                 padding: const EdgeInsets.all(20),
-                itemCount: jobs.length,
+                itemCount: filteredJobs.length,
                 itemBuilder: (context, index) {
-                  final job = jobs[index];
+                  final job = filteredJobs[index];
                   return Card(
                     elevation: 5,
                     margin: const EdgeInsets.only(bottom: 10),
@@ -272,7 +317,10 @@ class DashboardTab extends StatelessWidget {
                         color: job.status == 'Accepted' ? Colors.green : Colors.orange,
                       ),
                       onTap: () {
-                        JobDetailDialog.show(context, job);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => JobDetailPage(job: job)),
+                        );
                       },
                     ),
                   );
@@ -374,7 +422,10 @@ class JobsTab extends StatelessWidget {
                   color: statusColor,
                 ),
                 onTap: () {
-                  JobDetailDialog.show(context, job);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => JobDetailPage(job: job)),
+                  );
                 },
               ),
             );
@@ -385,7 +436,19 @@ class JobsTab extends StatelessWidget {
   }
 }
 
-class InterviewsTab extends StatelessWidget {
+class InterviewsTab extends StatefulWidget {
+  final String? highlightedJobId;
+
+  const InterviewsTab({super.key, this.highlightedJobId});
+
+  @override
+  State<InterviewsTab> createState() => _InterviewsTabState();
+}
+
+class _InterviewsTabState extends State<InterviewsTab> {
+  final ScrollController _scrollController = ScrollController();
+  String? _activeHighlightId;
+
   IconData _getInterviewTypeIcon(String? type) {
     switch (type?.toLowerCase()) {
       case 'phone':
@@ -424,6 +487,21 @@ class InterviewsTab extends StatelessWidget {
       ],
     );
   }
+  @override
+  void initState() {
+    super.initState();
+    _activeHighlightId = widget.highlightedJobId;
+  }
+
+  @override
+  void didUpdateWidget(covariant InterviewsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.highlightedJobId != oldWidget.highlightedJobId) {
+      setState(() {
+        _activeHighlightId = widget.highlightedJobId;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -452,14 +530,19 @@ class InterviewsTab extends StatelessWidget {
         }
 
         return ListView.builder(
+          controller: _scrollController,
           padding: const EdgeInsets.all(20),
           itemCount: jobs.length,
           itemBuilder: (context, index) {
             final job = jobs[index];
-            return Card(
-              elevation: 8,
+            final bool highlighted = _activeHighlightId != null && _activeHighlightId == job.id;
+
+            final card = Card(
+              color: highlighted ? const Color(0xFFFFF7E0) : null,
+              elevation: highlighted ? 12 : 8,
               margin: const EdgeInsets.only(bottom: 15),
               shape: RoundedRectangleBorder(
+                side: highlighted ? BorderSide(color: Colors.orange.shade300, width: 2) : BorderSide.none,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Padding(
@@ -507,9 +590,37 @@ class InterviewsTab extends StatelessWidget {
                 ),
               ),
             );
+
+            // If this is the highlighted job, schedule a scroll-to and clear highlight after a delay
+            if (highlighted) {
+              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                final itemOffset = index * 200.0; // approximate item height, OK for now
+                await _scrollController.animateTo(
+                  itemOffset,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeInOut,
+                );
+                // remove highlight after a short delay
+                Future.delayed(const Duration(seconds: 3), () {
+                  if (mounted) {
+                    setState(() {
+                      _activeHighlightId = null;
+                    });
+                  }
+                });
+              });
+            }
+
+            return card;
           },
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 }
